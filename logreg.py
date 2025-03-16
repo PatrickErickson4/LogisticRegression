@@ -742,3 +742,4 @@ class LogisticRegression:
         table.scale(1.2, 1.2)
     
         plt.show()
+        
