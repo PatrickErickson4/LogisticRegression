@@ -1,6 +1,6 @@
 # Regularized Logistic Regression with PyPlot Visualizations
 
-The following is a custom implemented class for a numpy implementation performing logistic regression with
+The following is my custom implemented class for a numpy implementation performing logistic regression with
 ElasticNet, Ridge, and LASSO capabilities, with heavy inspiration from sci-kit. The class contains different optimizers, such as Gradient Descent, mini-batch Gradient Descent (under SGD), and
 Stochastic Gradient Descent. 
 The class also contains visualizable capabilities, such as loss over epoch graphs, and pop-out classification
