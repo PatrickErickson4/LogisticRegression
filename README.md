@@ -7,8 +7,8 @@ The class also contains visualizable capabilities, such as loss over epoch graph
 reports and confusion matrices, implemented with matplotlib's pyplot. Please see logreg.py for more details. 
 
 Attached:
-  - an example EDA file that can be used to take inspirations from.
-  - exampleUsage: tutorial file to show how to use logreg.py
+  - **exampleEDA.ipynb**: an example EDA file that can be used to take inspirations from.
+  - **tutorial.ipynb**: tutorial file to show how to use logreg.py
 
 
 Feel free to use this file, for teaching and/or classification purposes.
