@@ -388,7 +388,7 @@ class LogisticRegression:
         else:
             raise Exception("Enter a Valid Loss function.")
     
-    def crossfoldValidation(trainingSet, trainingLabels, alpha=None, lam=0, batchSize=1, learningRate=.01, epochs=1000, loss="GD", folds=5, randomState=None):
+    def crossfoldValidation(trainingSet, trainingLabels, alpha=None, lam=0, batchSize=1, learningRate=.01, epochs=1000, loss="GD", folds=5, randomState=None,probabilityThreshold=.5):
 
         '''
         Computes k-fold cross validation on the dataset. fits models for the number of folds, then averages all the weights 
@@ -406,7 +406,7 @@ class LogisticRegression:
 
         OUTPUT:
         weights: The final averaged weights (INCLUDING BIAS) computed after training. is a (d+1)x1 numpy matrix.
-        finalLoss: an array of final losses over every fold.
+        finalLoss: an array of losses over every fold.
 
         '''
 
@@ -418,38 +418,33 @@ class LogisticRegression:
 
         # initialize return variables and aggregators
         finalLoss = []
-        accAverages = []
         weightsMatrix = []
+        accuracies = []
 
         #shuffle to ensure randomness
         indices = np.random.permutation(cases)
         XShuffled = trainingSet[indices]
         YShuffled = trainingLabels[indices]
 
-        for f in range(0, cases, foldSize):
 
-            #partition traning and validation sets
-            if cases - f < foldSize:
-                X_valid = XShuffled[f:]
-                Y_valid = YShuffled[f:]
-                X_train = XShuffled[:f]
-                Y_train = YShuffled[:f]
-            else:
-                X_valid = XShuffled[f:f+foldSize]
-                Y_valid = YShuffled[f:f+foldSize]
-                X_train = np.r_[XShuffled[:f], XShuffled[f+foldSize:]]
-                Y_train = np.r_[YShuffled[:f], YShuffled[f+foldSize:]]
+        folds_X = np.array_split(XShuffled, folds)
+        folds_Y = np.array_split(YShuffled, folds)
+
+        for i in range(folds):
+
+            X_valid = folds_X[i]
+            Y_valid = folds_Y[i]
+            X_train = np.concatenate(folds_X[:i] + folds_X[i+1:])
+            Y_train = np.concatenate(folds_Y[:i] + folds_Y[i+1:])
             
             #run a fit model on certain split of the k-fold and append results
             weights, lossHistory = LogisticRegression.fit(X_train, Y_train, alpha=alpha, lam=lam, learningRate=learningRate, epochs=epochs, loss=loss, randomState=randomState)
-            weights = np.array(weights)
+            accuracies.append(LogisticRegression.getAccuracy(X_valid,Y_valid,weights,probabilityThreshold=probabilityThreshold))
             weightsMatrix.append(weights)
-            finalLoss.append(lossHistory[-1])
-            accAverages.append(LogisticRegression.getAccuracy(X_valid, Y_valid, weights))
+            finalLoss.append(lossHistory)
 
-        #average weights and return
-        finalWeights = np.mean(np.array(weightsMatrix), axis=0)
-        return finalWeights, finalLoss, accAverages
+        #return weights
+        return weightsMatrix, finalLoss, accuracies
     
     def _generateReport(testingSet, testingLabels, weights, probabilityThreshold):
         '''
@@ -495,20 +490,31 @@ class LogisticRegression:
         FP = 0
         TN = 0
         FN = 0
+        
+        correct = []
 
         for i in range(cases):
             # calculate TP, FP, TN, FN
+            # add to correct classification / true label columns
             z = np.dot(weights.T, testingSetWithBias[i])
             probability = 1 / (1 + np.exp(-z))
             predicted = 1 if probability > probabilityThreshold else 0
             if predicted == 1 and testingLabels[i] == 1:
                 TP += 1
+                correct.append([1,testingLabels[i][0]])
             elif predicted == 1 and testingLabels[i] == 0:
                 FP += 1
+                correct.append([0,testingLabels[i][0]])
             elif predicted == 0 and testingLabels[i] == 0:
                 TN += 1
+                correct.append([1, testingLabels[i][0]])
             else:
                 FN += 1
+                correct.append([0,testingLabels[i][0]])
+
+        # build append the classifications and true labels to the testing set to return for another getter
+        correct = np.array(correct)
+        classifiedSet = np.c_[testingSetWithBias,correct]
 
         # else 0's are added to ensure that if the denominator is 0 in rare cases, then the report value is also 0
         # perform classification report formulas
@@ -556,7 +562,7 @@ class LogisticRegression:
             },
             'macro avg': macroAvg,
             'weighted avg': weightedAvg
-        },TP,FP,TN,FN
+        },TP,FP,TN,FN,classifiedSet
 
     def getAccuracy(testingSet, testingLabels, weights, probabilityThreshold=.5):
         '''
@@ -569,11 +575,38 @@ class LogisticRegression:
         probabilityThreshold: Defaulted to .5 in parent functions. can be changed by the client.
 
         OUTPUTS:
-        accuracy: correct classifications with given weights
+        accuracy: correct classifications percentage with given weights
         '''
-        report, _, _, _, _ = LogisticRegression._generateReport(testingSet, testingLabels, weights, probabilityThreshold=probabilityThreshold)
+        report, _, _, _, _, _ = LogisticRegression._generateReport(testingSet, testingLabels, weights, probabilityThreshold=probabilityThreshold)
         return round(report['accuracy'],6)
     
+    def getClassifications(testingSet, testingLabels, weights, probabilityThreshold=.5):
+        '''
+        Getter for a set of classified test features, bias removed
+
+        INPUTS:
+        testingSet: the test set for the dataset, without the labels
+        testingLabels: the labels corresponding to the test set.
+        weights: the finalized weights of some fitted model
+        probabilityThreshold: Defaulted to .5 in parent functions. can be changed by the client.
+
+        OUTPUTS:
+        correct: correct classifications with given weights as matrix of features, with added classifications and true labels column appended 
+        to the end, with no bias.
+        incorrect: correct: correct classifications with given weights as matrix of features, with added classifications and true labels column appended 
+        to the end, with no bias.
+        '''
+        _,_,_,_,_,classificationSet = LogisticRegression._generateReport(testingSet, testingLabels, weights, probabilityThreshold)
+        classificationSet = classificationSet[:,1:]
+
+        incorrect = classificationSet[classificationSet[:, -2] == 0]
+        correct = classificationSet[classificationSet[:, -2] == 1]
+
+        incorrect = np.c_[incorrect[:,:-2],incorrect[:,-1:]]
+        correct = np.c_[correct[:,:-2],correct[:,-1:]]
+
+        return correct, incorrect
+
     def getConfusionMatrix(testingSet, testingLabels, weights, probabilityThreshold=.5):
         '''
         getter for the True Positives, True Negatives, False Positives, and False Negatives.
@@ -589,8 +622,8 @@ class LogisticRegression:
         FP: Number of False Positive Classifications
         FN: Number of False Negative Classifications
         '''
-        _, TP, FP, TN, FN = LogisticRegression._generateReport(testingSet, testingLabels, weights, probabilityThreshold=probabilityThreshold)
-        return TP, FP, TN, FN
+        _, TP, FP, TN, FN, _ = LogisticRegression._generateReport(testingSet, testingLabels, weights, probabilityThreshold=probabilityThreshold)
+        return TP, FP, FN, TN
     
     def getClassificationReport(testingSet, testingLabels, weights, probabilityThreshold=0.5):
         '''
@@ -620,7 +653,7 @@ class LogisticRegression:
             'macro avg': macroAvg,
             'weighted avg': weightedAvg'
         '''
-        report, _, _, _, _ = LogisticRegression._generateReport(testingSet, testingLabels, weights, probabilityThreshold=probabilityThreshold)
+        report, _, _, _, _, _ = LogisticRegression._generateReport(testingSet, testingLabels, weights, probabilityThreshold=probabilityThreshold)
         return report
     
     def displayLossOverEpochs(lossHistories):
@@ -666,7 +699,7 @@ class LogisticRegression:
         '''
 
         #get confusion matrix
-        _, TP, FP, TN, FN = LogisticRegression._generateReport(testingSet, testingLabels, weights, probabilityThreshold=probabilityThreshold)
+        _, TP, FP, TN, FN,_ = LogisticRegression._generateReport(testingSet, testingLabels, weights, probabilityThreshold)
     
         # Build table data for confusion matrix
         table_data = [
@@ -704,9 +737,8 @@ class LogisticRegression:
         OUTPUTS:
         Pyplot table of the classification report
         '''
-
         #get classification report
-        report, _, _, _, _ = LogisticRegression._generateReport(testingSet, testingLabels, weights, probabilityThreshold=probabilityThreshold)
+        report, _, _, _, _, _ = LogisticRegression._generateReport(testingSet, testingLabels, weights, probabilityThreshold)
     
         # build table with all metrics from report
         table_data = []
@@ -742,4 +774,59 @@ class LogisticRegression:
         table.scale(1.2, 1.2)
     
         plt.show()
-        
+
+    def displayLogisticGraph(trainingSet, testingSet, testingLabels, weights, probabilityThreshold=.5):
+        '''
+        Displays the logistic function (sigmoid) along with the data points (binary 0/1) 
+        for a given problem, model, and testing set. Shows the misclassified points
+        Based on the logistic regression model as different from the correct classifications.
+
+        INPUT:
+        trainingSet: the training features for the 
+        testingSet: the testing features for the dataset. Used to compute logistic function.
+        testingLabels: the binary labels (0 or 1) corresponding to the testing features
+        weights: the model weights (including the bias as the first element)
+
+        OUTPUT:
+        A graph of the logistic function curve with the binary data points overlaid.
+        '''
+
+        trainingSetWithBias = np.c_[np.ones((len(trainingSet), 1)), trainingSet]
+        trainingZ= np.dot(trainingSetWithBias, weights).flatten()
+        function = 1 / (1 + np.exp(-trainingZ)).flatten()
+
+        #sort datapoints to make a valid graph instead of just noise
+        sort_idx = np.argsort(trainingZ)
+        trainingZ = trainingZ[sort_idx]
+        function = function[sort_idx]
+
+        # grabs test set with true false classifications as binary along with true labels tacked onto the end
+        _,_,_,_,_,classifiedSet = LogisticRegression._generateReport(testingSet,testingLabels,weights,probabilityThreshold)
+
+        #split correct and incorrect indices and compute z
+        incorrect = classifiedSet[classifiedSet[:, -2] == 0]
+        incorrectLabels = incorrect[:,-1:]
+        incorrect = incorrect[:,:-2]
+        incorrectZ = np.dot(incorrect, weights)
+
+        correct = classifiedSet[classifiedSet[:, -2] == 1]
+        correctLabels = correct[:,-1:]
+        correct = correct[:,:-2]
+        correctZ = np.dot(correct,weights)
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(trainingZ, function, label='Logistic Function', color='blue')
+        plt.axhline(y=probabilityThreshold, color='red', label='Probability Threshold')  
+        plt.scatter(correctZ, correctLabels, label='Correct Classifications', color='green', marker='o')
+        plt.scatter(incorrectZ, incorrectLabels, label='Incorrect Classifications', color='red', marker='x')
+
+        # legend apart from graph for better readability
+        plt.xlabel("weights dotted with features")
+        plt.ylabel("Probability")
+        plt.title("Plot of the Logistic Function")
+        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+
+

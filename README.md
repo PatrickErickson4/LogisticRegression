@@ -6,6 +6,9 @@ Stochastic Gradient Descent.
 The class also contains visualizable capabilities, such as loss over epoch graphs, and pop-out classification
 reports and confusion matrices, implemented with matplotlib's pyplot. Please see logreg.py for more details. 
 
-Attached is an example EDA file that can be used to take inspirations from.
+Attached:
+  - an example EDA file that can be used to take inspirations from.
+  - exampleUsage: tutorial file to show how to use logreg.py
+
 
 Feel free to use this file, for teaching and/or classification purposes.
