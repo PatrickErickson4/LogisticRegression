@@ -17,6 +17,7 @@ __all__ = [
     "trainTestSplit",
     "standardizer",
     "standardizeCompute",
+    "unNormalize",
     "fit",
     "crossfoldValidation",
     "getAccuracy",
@@ -133,16 +134,16 @@ class LogisticRegression:
         
         #conditional for regularization/no regularization. Ensures proper regularization hyperparams
         if alpha is None:
-            return LogisticRegression._lossAndGradientNoReg(wtx,sigmoid,x,y,cases)
+            return LogisticRegression._lossAndGradientNoReg(sigmoid,x,y,cases)
         elif alpha < 0 or alpha > 1:
             raise Exception("Enter a valid alpha between 0 and 1 (0 for ridge, 1 for lasso)")
         else:
             if(lam < 0):
                 raise Exception("Lambda can not be less than 0")
-            return LogisticRegression._lossAndGradientWithReg(wtx,sigmoid,x,y,cases,alpha=alpha,lam=lam,w=w)
+            return LogisticRegression._lossAndGradientWithReg(sigmoid,x,y,cases,alpha=alpha,lam=lam,w=w)
 
         
-    def _lossAndGradientNoReg(wtx,sigmoid,x,y,cases):
+    def _lossAndGradientNoReg(sigmoid,x,y,cases):
         '''
         NOTE: NOT MEANT FOR CLIENT USE.
         Computes loss and the gradient for every epoch for gradient descent if there 
@@ -169,7 +170,7 @@ class LogisticRegression:
         gradient = (x.T @ (sigmoid-y)) / cases
         return gradient, loss
     
-    def _lossAndGradientWithReg(wtx,sigmoid,x,y,cases, alpha, lam, w):
+    def _lossAndGradientWithReg(sigmoid,x,y,cases, alpha, lam, w):
         '''
         NOTE: NOT MEANT FOR CLIENT USE.
         Computes loss and the gradient for every epoch for gradient descent if there 
@@ -252,6 +253,27 @@ class LogisticRegression:
         standardizedSet: the resulting dataset, standardized on the training dataset.
         '''
         return (toStandardize-standardizer[0]) / standardizer[1]
+    
+
+    def unNormalize(tounNormalize, standardizer):
+        '''
+        function used to unNormalize all standardized functions from standardizeCompute.
+        This returns the data back to its original state.
+
+        INPUT:
+        dataset: The dataset, with labels at the end. NOTE: Ensure labels are at the end
+        standardizer: an array of:
+            mean: means of every feature in the dataset
+            std: the standard deviations of every feature in the dataset
+
+        OUTPUT:
+        tounNormalize: the resulting dataset, unstandardized to revert it back to its orginal state.
+        '''
+        labels = tounNormalize[:,-1]
+        tounNormalize = tounNormalize[:,:-1]
+        tounNormalize =  (tounNormalize*standardizer[1]) + standardizer[0]
+        tounNormalize = np.c_[tounNormalize,labels]
+        return tounNormalize
      
     def _performGDRegression(trainingSet,trainingLabels,alpha,lam,learningRate=.01,epochs = 1000):
         '''
@@ -828,5 +850,3 @@ class LogisticRegression:
         plt.grid(True)
         plt.tight_layout()
         plt.show()
-
-
