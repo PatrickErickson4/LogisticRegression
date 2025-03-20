@@ -7,7 +7,7 @@ The class also contains visualizable capabilities, such as loss over epoch graph
 reports and confusion matrices, implemented with matplotlib's pyplot. Please see logreg.py for more details. 
 
 Attached:
-  - **exampleEDA.ipynb**: an example EDA file that can be used to take inspirations from. The dataset can be found at [here](https://www.kaggle.com/datasets/marshuu/breast-cancer).
+  - **exampleEDA.ipynb**: an example EDA file that can be used to take inspirations from. The dataset can be found [here](https://www.kaggle.com/datasets/marshuu/breast-cancer).
   - **tutorial.ipynb**: tutorial file to show how to use logreg.py
 
 
