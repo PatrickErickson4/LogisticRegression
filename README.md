@@ -12,3 +12,5 @@ Attached:
 
 
 Feel free to use this file, for teaching and/or classification purposes.
+
+**Note:** This model was meant to be used with smaller datasets. Due the the nature of the gradient descent functions I had hard-coded, there are numerical inaccuracies that are introduced, as well as poor convergence for bigger datasets. For best use, refrain from larger datasets.
