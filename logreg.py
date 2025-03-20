@@ -166,7 +166,7 @@ class LogisticRegression:
         #loss function for base logistic regression. 
         # NOTE: if coming back to this later, @ = matrix multiply, and .T is a transpose, as offered by numpy libraries
         loss = - (y.T @ np.log(sigmoid) + (1 - y).T @ np.log(1 - sigmoid)) / cases  
-        loss = loss[0, 0] #produces a 1x1 numpy matrix. We force only 1 value to come out.
+        loss = loss[0] #produces a 1x1 numpy matrix. We force only 1 value to come out.
         gradient = (x.T @ (sigmoid-y)) / cases
         return gradient, loss
     
@@ -201,7 +201,7 @@ class LogisticRegression:
         loss = (- (y.T @ np.log(sigmoid) + (1 - y).T @ np.log(1 - sigmoid)) +
                  (1-alpha)*lam*np.dot(wNoBias.T,wNoBias) +
                  alpha*lam*np.sum(np.abs(wNoBias)))/ cases  
-        loss = loss[0, 0]
+        loss = loss[0] #produces a 1x1 numpy matrix. We force only 1 value to come out.
 
         #gradient for regularization
         gradient = ((x.T @ (sigmoid-y)) +
@@ -309,6 +309,7 @@ class LogisticRegression:
             
             #compute loss and gradient. Append loss to history and readjust weight after epoch
             gradient,loss = LogisticRegression._BinaryCrossEntropyAndLoss(trainingSetWithBias,trainingLabels,weights,alpha=alpha,lam=lam)
+            gradient = np.mean(gradient, axis=1, keepdims=True) 
             weights -= learningRate*gradient
             lossHistory.append(loss)
 
@@ -346,7 +347,6 @@ class LogisticRegression:
         lossHistory = []
 
         for num in range(epochs):
-
             #shuffle dataset per epoch
             indices = np.random.permutation(cases)
             trainingSetShuffled = trainingSetWithBias[indices]
@@ -364,6 +364,8 @@ class LogisticRegression:
                 trainingLabelBatch = trainingLabelsShuffled[item:item+batchSize]
 
                 gradient, loss = LogisticRegression._BinaryCrossEntropyAndLoss(trainingSetBatch, trainingLabelBatch, weights, alpha=alpha, lam=lam)
+                gradient = np.mean(gradient, axis=1, keepdims=True) 
+
                 weights -= learningRate * gradient
                 currentBatchSize = len(trainingSetBatch)
 
@@ -460,7 +462,7 @@ class LogisticRegression:
             Y_train = np.concatenate(folds_Y[:i] + folds_Y[i+1:])
             
             #run a fit model on certain split of the k-fold and append results
-            weights, lossHistory = LogisticRegression.fit(X_train, Y_train, alpha=alpha, lam=lam, learningRate=learningRate, epochs=epochs, loss=loss, randomState=randomState)
+            weights, lossHistory = LogisticRegression.fit(X_train, Y_train, alpha=alpha, lam=lam, learningRate=learningRate, epochs=epochs, loss=loss, randomState=randomState, batchSize=batchSize)
             accuracies.append(LogisticRegression.getAccuracy(X_valid,Y_valid,weights,probabilityThreshold=probabilityThreshold))
             weightsMatrix.append(weights)
             finalLoss.append(lossHistory)
@@ -521,21 +523,30 @@ class LogisticRegression:
             z = np.dot(weights.T, testingSetWithBias[i])
             probability = 1 / (1 + np.exp(-z))
             predicted = 1 if probability > probabilityThreshold else 0
-            if predicted == 1 and testingLabels[i] == 1:
+
+            label = testingLabels[i]
+
+            if predicted == 1 and label == 1:
                 TP += 1
-                correct.append([1,testingLabels[i][0]])
-            elif predicted == 1 and testingLabels[i] == 0:
+                correct.append([1,label])
+            elif predicted == 1 and label == 0:
                 FP += 1
-                correct.append([0,testingLabels[i][0]])
-            elif predicted == 0 and testingLabels[i] == 0:
+                correct.append([0,label])
+            elif predicted == 0 and label == 0:
                 TN += 1
-                correct.append([1, testingLabels[i][0]])
+                correct.append([1, label])
             else:
                 FN += 1
-                correct.append([0,testingLabels[i][0]])
+                correct.append([0,label])
+
+        flattened = [
+            [x, y.item() if isinstance(y, np.ndarray) and y.size == 1 else y]
+            for x, y in correct
+        ]
 
         # build append the classifications and true labels to the testing set to return for another getter
-        correct = np.array(correct)
+        correct = np.array(flattened)
+        
         classifiedSet = np.c_[testingSetWithBias,correct]
 
         # else 0's are added to ensure that if the denominator is 0 in rare cases, then the report value is also 0
@@ -693,7 +704,7 @@ class LogisticRegression:
 
         # 10 is the hard limit for histories
         if len(lossHistories) > 10:
-            raise Exception("Plots can only hold up to 10 loss histories to avoid cluttered graphs. Make a new plot for more.")
+            raise Exception("Plots can only hold up to 10 loss histories to avoid cluttered graphs. Make a new plot for more. (Did you ensure loss was encapsulated by an array?)")
         colors = plt.get_cmap("tab10").colors
 
         #contains all of tableau color palette
